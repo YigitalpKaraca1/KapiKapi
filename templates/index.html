@@ -13,23 +13,19 @@
 <body>
     <header class="main-header">
         <div class="container nav">
+
             <div class="logo"> <a href="index.html" class="logo">
                     <img src="{{ url_for('static', filename='favicon.webp') }}" alt="kutu kutu logo" class="logo-img">
                 </a>Kapı Kapı</div>
             <nav class="nav-right">
                 <ul class="nav-links">
-                    <li >Hoş geldiniz, {{ session['user_name'] }}</li>
-                    <li><a href="{{ url_for('home') }}">Profil</a></li>
                     <li><a href="{{ url_for('home') }}">Ana Sayfa</a></li>
                     <li><a href="{{ url_for('send') }}">Gönderi Oluştur</a></li>
-                    {% if session .get('user_name') %}
-                        <li><a href="{{ url_for('logout') }}" >Çıkış Yap</a></li>
-                    {% else %}
-                        <li><a href="{{ url_for('track') }}">Gönderi Takip</a></li>
-                        <li><a href="{{ url_for('courier') }}">Kurye Ol</a></li>
-                        <li><a href="{{ url_for('login') }}">Giriş Yap</a></li>
-                    {% endif %}
-                </ul>               
+                    <li><a href="{{ url_for('track') }}">Gönderi Takip</a></li>
+                    <li><a href="{{ url_for('courier') }}">Kurye Ol</a></li>
+                    <li><a href="{{ url_for('login') }}" style="color: #ff7a1a; font-weight: 600;">Giriş Yap</a></li>
+</ul>
+                </ul>
                 <a href="{{ url_for('send') }}" class="btn btn-small">Hemen Gönder</a>
             </nav>
         </div>

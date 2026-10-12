@@ -1,7 +1,8 @@
 from flask import Flask, redirect, url_for, render_template, request, session, flash, jsonify
 from werkzeug.security import check_password_hash, generate_password_hash
-import os
 from werkzeug.utils import secure_filename
+import os
+import sqlite3
 
 app = Flask(__name__)
 
@@ -11,13 +12,42 @@ UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# ------------------- Veriler -------------------
-users = {}
-messages = [] # Mesajlar burada saklanıyor
+# ------------------- Veritabanı Fonksiyonları -------------------
+def get_db_connection():
+    conn = sqlite3.connect('database.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fullname TEXT,
+        email TEXT UNIQUE,
+        password TEXT,
+        phone TEXT,
+        user_type TEXT,
+        profile_image TEXT,
+        user_plate TEXT
+    )''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender TEXT,
+        text TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+# ------------------- Rotalar -------------------
 @app.route("/")
 def home():
     return render_template('index.html')
@@ -26,7 +56,6 @@ def home():
 def send():
     return render_template('send.html')
 
-# ------------------- Sohbet (Chat) -------------------
 @app.route('/chat', methods=['GET', 'POST'])
 def chat():
     if 'user_id' not in session:
@@ -35,35 +64,29 @@ def chat():
     if request.method == 'POST':
         msg_text = request.form.get('message')
         if msg_text:
-            new_msg = {
-                'sender': session['user_name'],
-                'text': msg_text,
-                'type': session.get('user_type', 'customer')
-            }
-            messages.append(new_msg)
+            conn = get_db_connection()
+            conn.execute('INSERT INTO messages (sender, text) VALUES (?, ?)',
+                         (session['user_name'], msg_text))
+            conn.commit()
+            conn.close()
             
-        # Eğer istek JavaScript (AJAX) ile gelmişse, sadece "OK" döndür
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
              return "OK", 200 
         
-        # Normal form gönderimi ise sayfayı yenile
         return redirect(url_for('chat'))
 
+    conn = get_db_connection()
+    messages = conn.execute('SELECT * FROM messages ORDER BY timestamp ASC').fetchall()
+    conn.close()
     return render_template('chat.html', messages=messages)
 
-# JavaScript'in 3 saniyede bir yeni mesajları çektiği yer
 @app.route('/get_messages')
 def get_messages():
-    return jsonify({"messages": messages})
-
-# ------------------- Diğer Rotalar -------------------
-@app.route("/takip")
-def track():
-    return render_template('track.html')
-
-@app.route("/kurye-ol")
-def courier():
-    return render_template('courier.html')
+    conn = get_db_connection()
+    db_messages = conn.execute('SELECT sender, text FROM messages ORDER BY timestamp ASC').fetchall()
+    conn.close()
+    output = [{'sender': m['sender'], 'text': m['text']} for m in db_messages]
+    return jsonify({"messages": output})
 
 # ------------------- Login -------------------
 @app.route('/login', methods=['GET', 'POST'])
@@ -71,25 +94,33 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         sifre = request.form['password']
-        user = users.get(email)
+        
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
+        conn.close()
 
         if not user or not check_password_hash(user['password'], sifre):
-            return "Email veya şifre yanlış", 400
+            flash("Email veya şifre yanlış!", "error")
+            return redirect(url_for('login'))
 
-        session['user_id'] = email
+        # Session Bilgilerini Doldur
+        session['user_id'] = user['email']
         session['user_name'] = user['fullname']
-        session['email'] = email
+        session['email'] = user['email']
         session['phone'] = user['phone']
         session['user_type'] = user['user_type']
-        session['profile_image'] = user.get('profile_image', 'static/uploads/default.jpg')
+        session['profile_image'] = user['profile_image'] or 'static/uploads/default.jpg'
+        session['user_plate'] = user['user_plate']
         
-        return redirect(url_for('profile'))
+        flash(f"Hoş geldin, {user['fullname']}!", "success")
+        return redirect(url_for('home')) # Girişten sonra ANA SAYFAYA yönlendir
 
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
     session.clear()  
+    flash("Başarıyla çıkış yapıldı.", "info")
     return redirect(url_for('login')) 
 
 # ------------------- Register -------------------
@@ -104,109 +135,102 @@ def register():
         user_type = request.form['user_type'] 
         plate = request.form.get('plate') if user_type == 'kurye' else None
     
-        profile_image = None
+        if sifre != sifre_tekrar:
+            flash("Şifreler eşleşmiyor!", "error")
+            return redirect(url_for('register'))
+
+        profile_image = 'static/uploads/default.jpg'
         if 'profile_image' in request.files:
             file = request.files['profile_image']
             if file.filename != '' and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                profile_image = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(profile_image)
-           
-        if user_type == 'kurye' and not plate:
-            flash('Araç plakasını girmelisiniz!', 'error')
-            return redirect(url_for('register'))
-
-        if sifre != sifre_tekrar:
-            return "Şifreler eşleşmiyor", 400
-
-        if email in users:
-            return "Bu email zaten kayıtlı", 400
+                save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(save_path)
+                profile_image = save_path
 
         hashed_password = generate_password_hash(sifre, method='pbkdf2:sha256')
 
-        users[email] = {
-            'fullname': ad,
-            'email': email,
-            'password': hashed_password,
-            'phone': tel,
-            'user_type': user_type,
-            'profile_image': profile_image,
-            'user_plate': plate
-        }
-
-        session['user_id'] = email
-        session['user_name'] = ad
-        session['email'] = email
-        session['phone'] = tel
-        session['user_type'] = user_type   
-        session['user_plate'] = plate if user_type == 'kurye' else None
-
-        return redirect(url_for('login'))  
+        conn = get_db_connection()
+        try:
+            conn.execute('''INSERT INTO users 
+                (fullname, email, password, phone, user_type, profile_image, user_plate) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                (ad, email, hashed_password, tel, user_type, profile_image, plate))
+            conn.commit()
+            flash("Kayıt başarılı! Lütfen giriş yapın.", "success")
+            return redirect(url_for('login')) # Kayıt sonrası LOGIN sayfasına yönlendir
+        except sqlite3.IntegrityError:
+            flash("Bu email adresi zaten kullanımda!", "error")
+            return redirect(url_for('register'))
+        finally:
+            conn.close()
 
     return render_template('register.html')
 
-# ------------------- Profile -------------------
+# ------------------- Profile & Edit -------------------
 @app.route('/profile')
 def profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
     user = {
-        'user_name': session.get('user_name', 'Ziyaretçi'),
-        'user_email': session.get('email', 'email@domain.com'),
-        'user_phone': session.get('phone', '0000000000'),
-        'user_image': session.get('profile_image', 'static/uploads/default.jpg'),
-        'user_plate': session.get('user_plate', ''),
+        'user_name': session.get('user_name'),
+        'user_email': session.get('email'),
+        'user_phone': session.get('phone'),
+        'user_image': session.get('profile_image'),
+        'user_plate': session.get('user_plate'),
     }
-
     user_type = session.get('user_type', 'customer')
-
-    past_orders = session.get('past_orders', [
-        {"id": 1, "date": "2025-11-15", "status": "Teslim Edilecek"},
-        {"id": 2, "date": "2025-12-01", "status": "Teslim Edilecek"}
-    ])
-
-    if user_type == 'kurye':
-        for order in past_orders:
-            order['status'] = "Teslimatlar"
-
+    past_orders = [
+        {"id": 1, "date": "2025-11-15", "status": "Teslim Edilecek" if user_type != 'kurye' else "Teslimatlar"},
+        {"id": 2, "date": "2025-12-01", "status": "Teslim Edilecek" if user_type != 'kurye' else "Teslimatlar"}
+    ]
     return render_template('profile.html', user=user, past_orders=past_orders, user_type=user_type)
 
-# ------------------- Edit Profile -------------------
 @app.route("/edit_profile", methods=['GET', 'POST'])
 def edit_profile():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    user = {
-        'fullname': session.get('user_name', 'Ziyaretçi'),
-        'email': session.get('email', 'email@domain.com'),
-        'phone': session.get('phone', '0000000000'),
-        'profile_image': session.get('profile_image', 'static/uploads/default.jpg')
-    }
-
     if request.method == "POST":
-        user['fullname'] = request.form['fullname']
-        user['email'] = request.form['email']
-        user['phone'] = request.form['phone']
+        new_name = request.form['fullname']
+        new_phone = request.form['phone']
         
-        session['user_name'] = user['fullname']
-        session['email'] = user['email']
-        session['phone'] = user['phone']
+        conn = get_db_connection()
+        conn.execute('UPDATE users SET fullname = ?, phone = ? WHERE email = ?',
+                     (new_name, new_phone, session['email']))
         
         if 'profile_image' in request.files:
             file = request.files['profile_image']
             if file.filename != '' and allowed_file(file.filename):
                 filename = secure_filename(file.filename)
-                profile_image = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(profile_image)
-                user['profile_image'] = profile_image
-                session['profile_image'] = profile_image
+                save_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(save_path)
+                conn.execute('UPDATE users SET profile_image = ? WHERE email = ?',
+                             (save_path, session['email']))
+                session['profile_image'] = save_path
 
+        conn.commit()
+        conn.close()
+        
+        session['user_name'] = new_name
+        session['phone'] = new_phone
+        flash("Profil başarıyla güncellendi.", "success")
         return redirect(url_for('profile'))
 
+    user = {
+        'fullname': session.get('user_name'),
+        'email': session.get('email'),
+        'phone': session.get('phone'),
+        'profile_image': session.get('profile_image')
+    }
     return render_template('edit_profile.html', user=user)
 
+@app.route("/takip")
+def track(): return render_template('track.html')
+
+@app.route("/kurye-ol")
+def courier(): return render_template('courier.html')
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,150 +1,210 @@
 <!DOCTYPE html>
 <html lang="tr">
-
-<head>
-    <link rel="icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}">
-    <meta charset="UTF-8">
+  <head>
+    <link rel="icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}" />
+    <meta charset="UTF-8" />
     <title>Kayıt Ol - Kapı Kapı</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <style>
+      /* Temel Sayfa Düzeni */
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
 
-<body>
+      /* İçerik Alanı: Sol tarafta mesajlar, ortada form */
+      .register-main-container {
+        flex: 1;
+        display: flex;
+        position: relative;
+        padding: 2rem;
+      }
+
+      /* Sol Taraf: Hata Mesajları Alanı */
+      .alert-side-container {
+        position: fixed; /* Sayfa kaysa bile yerinde kalır */
+        left: 2rem;
+        top: 30%; /* Ekranın üst-orta kısmından başlar */
+        width: 300px;
+        z-index: 100;
+      }
+
+      .alert-message {
+        padding: 12px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        text-align: left;
+        font-size: 0.85rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 1px solid transparent;
+        animation: slideIn 0.5s ease-out;
+      }
+
+      @keyframes slideIn {
+        from { transform: translateX(-50px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+      }
+
+      .alert-error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-color: #f5c6cb;
+      }
+
+      .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+        border-color: #c3e6cb;
+      }
+
+      /* Orta Taraf: Formun Tam Ortalanması */
+      .form-center-container {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .main-form {
+        width: 100%;
+        max-width: 420px;
+        background: #fff;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      }
+
+      .logo-link {
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        color: inherit;
+      }
+
+      /* Mobil uyumluluk: Mobilde mesajlar üste çıkar */
+      @media (max-width: 900px) {
+        .register-main-container {
+            flex-direction: column;
+            align-items: center;
+        }
+        .alert-side-container {
+            position: static;
+            width: 100%;
+            max-width: 420px;
+            margin-bottom: 1rem;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
     <header class="main-header">
-        <div class="container nav">
-            <div class="logo">
-                <a href="index.html" class="logo">
-                    <img src="{{ url_for('static', filename='favicon.webp') }}" alt="kutu kutu logo" class="logo-img">
-                </a>Kapı Kapı
-            </div>
-            <nav class="nav-right">
-                <ul class="nav-links">
-                    <li><a href="{{ url_for('home') }}">Ana Sayfa</a></li>
-                    <li><a href="{{ url_for('send') }}">Gönderi Oluştur</a></li>
-                    {% if session.get('user_name') %}
-                        <li style="color: #0dbf87; font-weight: 700;">Hoş geldin, {{ session['user_name'] }}</li>
-                        <li><a href="{{ url_for('logout') }}" style="color: #ff7a1a;">Çıkış Yap</a></li>
-                    {% else %}
-                        <li><a href="{{ url_for('track') }}">Gönderi Takip</a></li>
-                        <li><a href="{{ url_for('courier') }}">Kurye Ol</a></li>
-                        <li><a href="{{ url_for('login') }}" style="color: #ff7a1a; font-weight: 600;">Giriş Yap</a></li>
-                    {% endif %}
-                </ul>
-                <a href="{{ url_for('send') }}" class="btn btn-small">Hemen Gönder</a>
-            </nav>
+      <div class="container nav">
+        <div class="logo">
+          <a href="{{ url_for('home') }}" class="logo-link">
+            <img src="{{ url_for('static', filename='favicon.webp') }}" alt="logo" class="logo-img" />
+            <span style="margin-left: 10px">Kapı Kapı</span>
+          </a>
         </div>
+        <nav class="nav-right">
+          <ul class="nav-links">
+            <li><a href="{{ url_for('home') }}">Ana Sayfa</a></li>
+            <li><a href="{{ url_for('chat') }}">Sohbet</a></li>
+            <li><a href="{{ url_for('send') }}">Gönderi Oluştur</a></li>
+            {% if session.get('user_name') %}
+                <li style="color: #0dbf87; font-weight: 700">Hoş geldin, {{ session['user_name'] }}</li>
+                <li><a href="{{ url_for('logout') }}" style="color: #ff7a1a">Çıkış Yap</a></li>
+            {% else %}
+                <li><a href="{{ url_for('track') }}">Gönderi Takip</a></li>
+                <li><a href="{{ url_for('courier') }}">Kurye Ol</a></li>
+                <li><a href="{{ url_for('login') }}" style="color: #ff7a1a; font-weight: 600">Giriş Yap</a></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
     </header>
 
-    <main class="page-main">
-        <section class="page-header">
-            <div class="container">
-                <h1>Aramıza Katıl</h1>
-                <p>Hızlıca hesap oluştur, gönderilerini kolayca yönet.</p>
-            </div>
-        </section>
+    <main class="register-main-container">
+      <div class="alert-side-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="alert-message {% if category == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                <strong>Bildirim:</strong><br>
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+      </div>
 
-        <section class="form-section">
-            <div class="container login-layout">
-                <form class="main-form" method="POST" action="{{ url_for('register') }}" enctype="multipart/form-data">
-                    <h2>Kayıt Formu</h2>
+      <div class="form-center-container">
+        <form class="main-form" method="POST" action="{{ url_for('register') }}" enctype="multipart/form-data">
+          <h2 style="text-align: center; margin-bottom: 1.5rem; color: #333;">Kayıt Formu</h2>
 
-                    <div class="form-grid">
-                        <label>
-                            Ad Soyad
-                            <input type="text" name="fullname" placeholder="Adınız ve Soyadınız" required>
-                        </label>
-                        <label>
-                            Telefon
-                            <input type="tel" name="phone" placeholder="05XX XXX XX XX" required>
-                        </label>
-                    </div>
+          <div class="form-grid">
+            <label>Ad Soyad <input type="text" name="fullname" placeholder="Ad Soyad" required /></label>
+            <label>Telefon <input type="tel" name="phone" placeholder="05XX XXX XX XX" required /></label>
+          </div>
 
-                    <label>
-                        E-posta Adresi
-                        <input type="email" name="email" placeholder="ornek@email.com" required>
-                    </label>
+          <label>E-posta Adresi <input type="email" name="email" placeholder="ornek@email.com" required /></label>
 
-                    <div class="form-grid">
-                        <label>
-                            Şifre
-                            <input type="password" name="password" placeholder="********" required>
-                        </label>
-                        <label>
-                            Şifre Tekrar
-                            <input type="password" name="password_repeat" placeholder="********" required>
-                        </label>
-                    </div>
+          <div class="form-grid">
+            <label>Şifre <input type="password" name="password" placeholder="********" required /></label>
+            <label>Şifre Tekrar <input type="password" name="password_repeat" placeholder="********" required /></label>
+          </div>
 
-                    <label>
-                        Kullanıcı Tipi
-                        <select name="user_type" id="user_type" required>
-                            <option value="musteri">Müşteri</option>
-                            <option value="kurye">Kurye</option>
-                        </select>
-                    </label>
+          <label>Kullanıcı Tipi
+            <select name="user_type" id="user_type" required>
+              <option value="musteri">Müşteri</option>
+              <option value="kurye">Kurye</option>
+            </select>
+          </label>
 
-                    <!-- Kurye için Plaka Bilgisi -->
-                    <div id="plate-field" style="display: none;">
-                        <label for="plate">Araç Plakası:</label>
-                        <input type="text" name="plate" placeholder="Plakanızı girin" />
-                    </div>
+          <div id="plate-field" style="display: none; margin-bottom: 1rem">
+            <label for="plate">Araç Plakası:</label>
+            <input type="text" name="plate" placeholder="34 ABC 123" />
+          </div>
 
-                    <!-- Profil Fotoğrafı Alanı (Her iki kullanıcı tipi için geçerli) -->
-                    <label>Profil Fotoğrafı:</label>
-                    <input type="file" name="user_image" accept="image/*">
+          <label>Profil Fotoğrafı:</label>
+          <input type="file" name="profile_image" accept="image/*" />
 
-                    <div class="form-extras">
-                        <label class="checkbox-label">
-                            <input type="checkbox" required style="width: auto; margin-top:0;"> 
-                            <span style="font-size: 0.85rem;">Üyelik sözleşmesini okudum ve kabul ediyorum.</span>
-                        </label>
-                    </div>
+          <div class="form-extras">
+            <label class="checkbox-label" style="display: flex; align-items: flex-start; gap: 8px">
+              <input type="checkbox" required style="width: auto; margin-top: 4px" />
+              <span style="font-size: 0.85rem">Üyelik sözleşmesini okudum ve kabul ediyorum.</span>
+            </label>
+          </div>
 
-                    <button type="submit" class="btn btn-block">Hesap Oluştur</button>
+          <button type="submit" class="btn btn-block" style="margin-top: 1rem">Hesap Oluştur</button>
 
-                    <div class="form-footer">
-                        Zaten hesabın var mı? <a href="{{ url_for('login') }}">Giriş Yap</a>
-                    </div>
-                </form>
-            </div>
-        </section>
+          <div class="form-footer" style="text-align: center; margin-top: 1rem;">
+            Zaten hesabın var mı? <a href="{{ url_for('login') }}">Giriş Yap</a>
+          </div>
+        </form>
+      </div>
     </main>
 
     <footer class="site-footer">
-        <div class="container footer-grid">
-            <div>
-                <div class="logo footer-logo">Kapı Kapı</div>
-                <p>Şehir içi günlük kargo ve kurye platformu.</p>
-            </div>
-            <div>
-                <h4>Bağlantılar</h4>
-                <ul class="footer-links">
-                    <li><a href="{{ url_for('send') }}">Gönderi Oluştur</a></li>
-                    <li><a href="{{ url_for('track') }}">Gönderi Takip</a></li>
-                    <li><a href="{{ url_for('courier') }}">Kurye Ol</a></li>
-                </ul>
-            </div>
-            <div>
-                <h4>İletişim</h4>
-                <p>E-posta: info@kapikapi.com</p>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            © 2025 Kapı Kapı. Tüm hakları saklıdır.
-        </div>
+      <div class="footer-bottom">© 2025 Kapı Kapı. Tüm hakları saklıdır.</div>
     </footer>
 
     <script>
-        // Kullanıcı tipi seçildiğinde plaka alanını göster ya da gizle
-        document.getElementById("user_type").addEventListener("change", function () {
-            var plateField = document.getElementById("plate-field");
-            if (this.value === "kurye") {
-                plateField.style.display = "block";
-            } else {
-                plateField.style.display = "none";
-            }
-        });
+      document.getElementById("user_type").addEventListener("change", function () {
+        var plateField = document.getElementById("plate-field");
+        var plateInput = plateField.querySelector("input");
+        if (this.value === "kurye") {
+          plateField.style.display = "block";
+          plateInput.setAttribute("required", "required");
+        } else {
+          plateField.style.display = "none";
+          plateInput.removeAttribute("required");
+        }
+      });
     </script>
-</body>
-
+  </body>
 </html>
